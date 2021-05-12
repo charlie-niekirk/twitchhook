@@ -1,0 +1,11 @@
+name: Twitchhook
+version: @version@
+main: com.cniekirk.twitchhook.TwitchHook
+api-version: 1.16
+authors: [ Charlie ]
+description: Performs actions in game according to Twitch chat events
+commands:
+  chaos:
+    description: Starts the chaos
+    usage: /chaos
+    permission: twitchhook.player
