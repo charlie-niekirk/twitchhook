@@ -43,10 +43,12 @@ class ChaosCommand(
                                 is StreamEvent.TwitchSubscription -> {
                                     Bukkit.broadcastMessage("" + ChatColor.RED + message.systemMessage)
                                     Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
-                                        sender.player?.world?.spawnEntity(
+                                        val zombie = sender.player?.world?.spawnEntity(
                                             sender.player?.location!!.add(1.0, 1.0, 1.0),
                                             EntityType.ZOMBIE
                                         )
+                                        zombie?.customName = message.gifter
+                                        zombie?.isCustomNameVisible = true
                                     }
                                 }
                                 is StreamEvent.TwitchMassGiftMessage -> {

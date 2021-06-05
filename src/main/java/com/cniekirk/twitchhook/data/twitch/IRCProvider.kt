@@ -33,6 +33,7 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
     override fun startDataStream(dataStreamConfig: DataStreamConfig) {
         when (dataStreamConfig) {
             is DataStreamConfig.TwitchConfig -> {
+                logger.info("Starting data stream: ${dataStreamConfig.targetChannelName}")
                 webSocket = webSocketClient.newWebSocket(request, this)
                 this.targetChannelName = dataStreamConfig.targetChannelName
                 this.accessToken = dataStreamConfig.accessToken
@@ -46,6 +47,7 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
 
     override fun stopDataStream() {
         webSocket.close(1000, null)
+        webSocketClient.dispatcher.cancelAll()
     }
 
     override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -61,8 +63,8 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
-        val privMatcher = privmsgPattern.matcher(text)
-        val usernoticeMatcher = usernoticePattern.matcher(text)
+        val privMatcher = privmsgPattern.matcher(text.trim())
+        val usernoticeMatcher = usernoticePattern.matcher(text.trim())
         CoroutineScope(Dispatchers.IO).launch {
             if (text.contains("PING :tmi.twitch.tv")) {
                 webSocket.send("PONG :tmi.twitch.tv")
@@ -75,11 +77,12 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
             }
             // If a sub/gifted sub/bits donation
             else if (usernoticeMatcher.matches()) {
+                logger.info("NOTICE: $text")
                 val tags = usernoticeMatcher.group("tags").parseTags()
                 when (tags["msg-id"]) {
                     // Individual sub messages
                     "sub", "resub", "subgift", "anonsubgift" -> {
-                        _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString()))
+                        _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString().replace("""\s""", " "), tags["display-name"].toString()))
                     }
                     // User gifted X subs to the community
                     "submysterygift" -> {
