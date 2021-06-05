@@ -5,4 +5,6 @@ import kotlinx.coroutines.flow.SharedFlow
 
 interface DataStreamProvider {
     val eventStream: SharedFlow<StreamEvent>
+    fun startDataStream(dataStreamConfig: DataStreamConfig)
+    fun stopDataStream()
 }

@@ -1,7 +1,9 @@
 package com.cniekirk.twitchhook.data.twitch
 
 import com.cniekirk.twitchhook.StreamEvent
+import com.cniekirk.twitchhook.data.DataStreamConfig
 import com.cniekirk.twitchhook.data.DataStreamProvider
+import com.cniekirk.twitchhook.parseTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -9,6 +11,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import okhttp3.*
 import java.util.logging.Logger
+import java.util.regex.Pattern
 
 class IRCProvider(private val webSocketClient: OkHttpClient,
                   private val request: Request,
@@ -18,23 +21,30 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
     private val _twitchEventFlow = MutableSharedFlow<StreamEvent>()
     override val eventStream = _twitchEventFlow.asSharedFlow()
 
+    // USERNOTICE tag regex
+    private val usernoticePattern = Pattern.compile("""^@(?<tags>.*?) :tmi\.twitch\.tv USERNOTICE #(?<channel>.*?) ?(:(?<message>.*))?$""")
+    private val privmsgPattern = Pattern.compile("""^@(?<tags>.*?) (:(?<user>.*?)!.*?\.tmi\.twitch\.tv) PRIVMSG #(?<channel>.*?) :(?<msg>.*)$""")
+
     private lateinit var webSocket: WebSocket
     private lateinit var targetChannelName: String
     private lateinit var accessToken: String
     private lateinit var username: String
 
-    fun connectToStream(accessToken: String, username: String, targetChannelName: String) {
-        webSocket = webSocketClient.newWebSocket(request, this)
-        this.targetChannelName = targetChannelName
-        this.accessToken = accessToken
-        this.username = username
+    override fun startDataStream(dataStreamConfig: DataStreamConfig) {
+        when (dataStreamConfig) {
+            is DataStreamConfig.TwitchConfig -> {
+                webSocket = webSocketClient.newWebSocket(request, this)
+                this.targetChannelName = dataStreamConfig.targetChannelName
+                this.accessToken = dataStreamConfig.accessToken
+                this.username = dataStreamConfig.username
+            }
+            is DataStreamConfig.StreamLabsConfig -> {
+                logger.info("The plugin has been corrupted: Wrong Config!!")
+            }
+        }
     }
 
-    fun sendMessage(message: String) {
-        webSocket.send(message)
-    }
-
-    fun disconnect() {
+    override fun stopDataStream() {
         webSocket.close(1000, null)
     }
 
@@ -51,38 +61,30 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
+        val privMatcher = privmsgPattern.matcher(text)
+        val usernoticeMatcher = usernoticePattern.matcher(text)
         CoroutineScope(Dispatchers.IO).launch {
+            if (text.contains("PING :tmi.twitch.tv")) {
+                webSocket.send("PONG :tmi.twitch.tv")
+            }
             // On chat message
-            if (text.contains("PRIVMSG")) {
-                val message = text.substring(
-                    text.lastIndexOf("PRIVMSG #$targetChannelName") + "PRIVMSG #$targetChannelName".length + 2,
-                    text.lastIndex)
-                val senderStart = text.indexOf("display-name=").plus("display-name=".length)
-                val sender = text.substring(senderStart, text.indexOf(';', senderStart))
-                _twitchEventFlow.emit(StreamEvent.TwitchChatMessage(sender, message))
+            else if (privMatcher.matches()) {
+                val tags = privMatcher.group("tags").parseTags()
+                val message = privMatcher.group("msg")
+                _twitchEventFlow.emit(StreamEvent.TwitchChatMessage(tags["display-name"] ?: privMatcher.group("user"), message))
             }
             // If a sub/gifted sub/bits donation
-            else if (text.contains("USERNOTICE")) {
-                val numSubs = if (text.contains("submysterygift", true).or(
-                        text.contains("anonsubgift", true)
-                    )) {
-                    val numberStart = text.indexOf("msg-param-mass-gift-count=")
-                        .plus("msg-param-mass-gift-count=".length)
-                    text.substring(numberStart, text.indexOf(';', numberStart)).toInt()
-                } else if (text.contains("=sub;")) {
-                    1
-                }
-                else {
-                    0
-                }
-                if (numSubs > 1) {
-                    val gifterStart = text.indexOf("login=").plus("login=".length)
-                    val gifter = text.substring(gifterStart, text.indexOf(';', gifterStart))
-                    _twitchEventFlow.emit(StreamEvent.TwitchGiftSubscription(numSubs, gifter))
-                } else if (numSubs > 0 && text.contains("=sub;")) {
-                    val senderStart = text.indexOf("display-name=").plus("display-name=".length)
-                    val sender = text.substring(senderStart, text.indexOf(';', senderStart))
-                    _twitchEventFlow.emit(StreamEvent.TwitchNormalSubscription(numSubs, sender))
+            else if (usernoticeMatcher.matches()) {
+                val tags = usernoticeMatcher.group("tags").parseTags()
+                when (tags["msg-id"]) {
+                    // Individual sub messages
+                    "sub", "resub", "subgift", "anonsubgift" -> {
+                        _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString()))
+                    }
+                    // User gifted X subs to the community
+                    "submysterygift" -> {
+                        _twitchEventFlow.emit(StreamEvent.TwitchMassGiftMessage(tags["system-msg"].toString()))
+                    }
                 }
             }
         }

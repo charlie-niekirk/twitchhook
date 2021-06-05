@@ -3,6 +3,7 @@ package com.cniekirk.twitchhook.command
 import com.cniekirk.twitchhook.data.twitch.IRCProvider
 import com.cniekirk.twitchhook.StreamEvent
 import com.cniekirk.twitchhook.TwitchHook
+import com.cniekirk.twitchhook.data.DataStreamConfig
 import com.cniekirk.twitchhook.data.DataStreamMuxer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
@@ -28,38 +29,28 @@ class ChaosCommand(
 
                 if (sender.hasPermission("twitchhook.chaos")) {
 
-                    provider.connectToStream(accessToken, username, args[0])
+                    val twitchIrcConfig = DataStreamConfig.TwitchConfig(accessToken, username, args[0])
+                    provider.start(mapOf("twitch" to twitchIrcConfig))
 
                     CoroutineScope(Dispatchers.IO).launch {
                         provider.combinedEventStream().collect { message: StreamEvent ->
                             coroutineContext.ensureActive()
                             when (message) {
                                 is StreamEvent.TwitchChatMessage -> {
-                                    if (message.content.contains("PING", true)) {
-                                        provider.sendMessage("PONG :tmi.twitch.tv")
-                                    }
-//                                    Bukkit.broadcastMessage("[".trimEnd() + ChatColor.BLUE + "".trimEnd() + ChatColor.BOLD + message.username.trimEnd() +
-//                                            ChatColor.RESET + "]: ${message.content}".trimEnd())
+                                    Bukkit.broadcastMessage("[".trimEnd() + ChatColor.BLUE + "".trimEnd() + ChatColor.BOLD + message.username.trimEnd() +
+                                            ChatColor.RESET + "]: ${message.content}".trimEnd())
                                 }
-                                is StreamEvent.TwitchGiftSubscription -> {
-                                    Bukkit.broadcastMessage("[GIFTED SUBS]: ${message.giftingUsername} gifted ${message.numSubs} subs!".trimEnd())
-                                    repeat(message.numSubs) {
-                                        Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
-                                            sender.player?.world?.spawnEntity(
-                                                sender.player?.location!!.add(1.0, 1.0, 1.0),
-                                                EntityType.ZOMBIE
-                                            )
-                                        }
-                                    }
-                                }
-                                is StreamEvent.TwitchNormalSubscription -> {
-                                    Bukkit.broadcastMessage("[USER SUB]: " + ChatColor.DARK_RED + "${message.username} just subscribed!".trimEnd())
+                                is StreamEvent.TwitchSubscription -> {
+                                    Bukkit.broadcastMessage("" + ChatColor.RED + message.systemMessage)
                                     Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
                                         sender.player?.world?.spawnEntity(
                                             sender.player?.location!!.add(1.0, 1.0, 1.0),
                                             EntityType.ZOMBIE
                                         )
                                     }
+                                }
+                                is StreamEvent.TwitchMassGiftMessage -> {
+                                    Bukkit.broadcastMessage("" + ChatColor.BLUE + message.systemMessage)
                                 }
                             }
                         }
