@@ -1,8 +1,9 @@
-package com.cniekirk.twitchhook
+package com.cniekirk.twitchhook.data.twitch
 
+import com.cniekirk.twitchhook.StreamEvent
+import com.cniekirk.twitchhook.data.DataStreamProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -12,10 +13,10 @@ import java.util.logging.Logger
 class IRCProvider(private val webSocketClient: OkHttpClient,
                   private val request: Request,
                   private val logger: Logger
-): WebSocketListener() {
+): WebSocketListener(), DataStreamProvider {
 
-    private val _twitchEventFlow = MutableSharedFlow<TwitchEvent>()
-    val twitchEventFlow = _twitchEventFlow.asSharedFlow()
+    private val _twitchEventFlow = MutableSharedFlow<StreamEvent>()
+    override val eventStream = _twitchEventFlow.asSharedFlow()
 
     private lateinit var webSocket: WebSocket
     private lateinit var targetChannelName: String
@@ -51,14 +52,17 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
 
     override fun onMessage(webSocket: WebSocket, text: String) {
         CoroutineScope(Dispatchers.IO).launch {
+            // On chat message
             if (text.contains("PRIVMSG")) {
                 val message = text.substring(
                     text.lastIndexOf("PRIVMSG #$targetChannelName") + "PRIVMSG #$targetChannelName".length + 2,
                     text.lastIndex)
                 val senderStart = text.indexOf("display-name=").plus("display-name=".length)
                 val sender = text.substring(senderStart, text.indexOf(';', senderStart))
-                _twitchEventFlow.emit(TwitchEvent.Message(sender, message))
-            } else if (text.contains("USERNOTICE")) {
+                _twitchEventFlow.emit(StreamEvent.TwitchChatMessage(sender, message))
+            }
+            // If a sub/gifted sub/bits donation
+            else if (text.contains("USERNOTICE")) {
                 val numSubs = if (text.contains("submysterygift", true).or(
                         text.contains("anonsubgift", true)
                     )) {
@@ -74,11 +78,11 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
                 if (numSubs > 1) {
                     val gifterStart = text.indexOf("login=").plus("login=".length)
                     val gifter = text.substring(gifterStart, text.indexOf(';', gifterStart))
-                    _twitchEventFlow.emit(TwitchEvent.GiftSubscription(numSubs, gifter))
+                    _twitchEventFlow.emit(StreamEvent.TwitchGiftSubscription(numSubs, gifter))
                 } else if (numSubs > 0 && text.contains("=sub;")) {
                     val senderStart = text.indexOf("display-name=").plus("display-name=".length)
                     val sender = text.substring(senderStart, text.indexOf(';', senderStart))
-                    _twitchEventFlow.emit(TwitchEvent.NormalSubscription(numSubs, sender))
+                    _twitchEventFlow.emit(StreamEvent.TwitchNormalSubscription(numSubs, sender))
                 }
             }
         }

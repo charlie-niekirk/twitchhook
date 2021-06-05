@@ -1,0 +1,6 @@
+groups:
+  Users:
+    defalt: true
+    permissions:
+      - twitchhook.chaos
+    inheritence: []

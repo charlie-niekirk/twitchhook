@@ -9,7 +9,7 @@ commands:
     description: Starts the chaos
     usage: /chaos
     permission: twitchhook.player
-  stop:
-    description: Stops the chaos
-    usage: /stop
+  calm:
+    description: Calms the chaos
+    usage: /calm
     permission: twitchhook.player
