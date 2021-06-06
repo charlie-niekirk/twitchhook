@@ -13,9 +13,9 @@ import okhttp3.*
 import java.util.logging.Logger
 import java.util.regex.Pattern
 
-class IRCProvider(private val webSocketClient: OkHttpClient,
-                  private val request: Request,
-                  private val logger: Logger
+class TwitchProvider(private val webSocketClient: OkHttpClient,
+                     private val request: Request,
+                     private val logger: Logger
 ): WebSocketListener(), DataStreamProvider {
 
     private val _twitchEventFlow = MutableSharedFlow<StreamEvent>()
@@ -33,7 +33,6 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
     override fun startDataStream(dataStreamConfig: DataStreamConfig) {
         when (dataStreamConfig) {
             is DataStreamConfig.TwitchConfig -> {
-                logger.info("Starting data stream: ${dataStreamConfig.targetChannelName}")
                 webSocket = webSocketClient.newWebSocket(request, this)
                 this.targetChannelName = dataStreamConfig.targetChannelName
                 this.accessToken = dataStreamConfig.accessToken
@@ -59,34 +58,36 @@ class IRCProvider(private val webSocketClient: OkHttpClient,
         webSocket.send("NICK $username")
         webSocket.send("USER $username 8 * :$username")
         // Join specified channel
-        webSocket.send("JOIN #$targetChannelName")
+        webSocket.send("JOIN #${targetChannelName.lowercase()}")
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
         val privMatcher = privmsgPattern.matcher(text.trim())
         val usernoticeMatcher = usernoticePattern.matcher(text.trim())
         CoroutineScope(Dispatchers.IO).launch {
-            if (text.contains("PING :tmi.twitch.tv")) {
-                webSocket.send("PONG :tmi.twitch.tv")
-            }
-            // On chat message
-            else if (privMatcher.matches()) {
-                val tags = privMatcher.group("tags").parseTags()
-                val message = privMatcher.group("msg")
-                _twitchEventFlow.emit(StreamEvent.TwitchChatMessage(tags["display-name"] ?: privMatcher.group("user"), message))
-            }
-            // If a sub/gifted sub/bits donation
-            else if (usernoticeMatcher.matches()) {
-                logger.info("NOTICE: $text")
-                val tags = usernoticeMatcher.group("tags").parseTags()
-                when (tags["msg-id"]) {
-                    // Individual sub messages
-                    "sub", "resub", "subgift", "anonsubgift" -> {
-                        _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString().replace("""\s""", " "), tags["display-name"].toString()))
-                    }
-                    // User gifted X subs to the community
-                    "submysterygift" -> {
-                        _twitchEventFlow.emit(StreamEvent.TwitchMassGiftMessage(tags["system-msg"].toString()))
+            when {
+                // Handle PING <-> PONG
+                text.contains("PING :tmi.twitch.tv") -> {
+                    webSocket.send("PONG :tmi.twitch.tv")
+                }
+                // On chat message
+                privMatcher.matches() -> {
+                    val tags = privMatcher.group("tags").parseTags()
+                    val message = privMatcher.group("msg")
+                    _twitchEventFlow.emit(StreamEvent.TwitchChatMessage(tags["display-name"] ?: privMatcher.group("user"), message))
+                }
+                // If a sub/gifted sub/bits donation
+                usernoticeMatcher.matches() -> {
+                    val tags = usernoticeMatcher.group("tags").parseTags()
+                    when (tags["msg-id"]) {
+                        // Individual sub messages
+                        "sub", "resub", "subgift", "anonsubgift" -> {
+                            _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString().replace("""\s""", " "), tags["display-name"].toString()))
+                        }
+                        // User gifted X subs to the community
+                        "submysterygift" -> {
+                            _twitchEventFlow.emit(StreamEvent.TwitchMassGiftMessage(tags["system-msg"].toString().replace("""\s""", " ")))
+                        }
                     }
                 }
             }

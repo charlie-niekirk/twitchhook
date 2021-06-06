@@ -3,7 +3,7 @@ package com.cniekirk.twitchhook
 import com.cniekirk.twitchhook.command.ChaosCommand
 import com.cniekirk.twitchhook.command.StopCommand
 import com.cniekirk.twitchhook.data.DataStreamMuxer
-import com.cniekirk.twitchhook.data.twitch.IRCProvider
+import com.cniekirk.twitchhook.data.twitch.TwitchProvider
 import kotlinx.coroutines.FlowPreview
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -31,10 +31,12 @@ class TwitchHook: JavaPlugin() {
             .url("wss://irc-ws.chat.twitch.tv:443")
             .build()
 
-        val provider = IRCProvider(client, request, Bukkit.getLogger())
+        // Twitch data stream
+        val provider = TwitchProvider(client, request, Bukkit.getLogger())
+        // Allows multiple providers to be muxed together
         val muxer = DataStreamMuxer(mapOf("twitch" to provider))
 
-        val commandHandler = ChaosCommand(muxer, config["access_token"].toString(), config["username"].toString())
+        val commandHandler = ChaosCommand(muxer, config["access_token"].toString(), config["username"].toString(), config.getBoolean("chat_enabled"))
         val stopCommand = StopCommand(muxer)
         getCommand("chaos")?.setExecutor(commandHandler)
         getCommand("calm")?.setExecutor(stopCommand)
@@ -44,12 +46,6 @@ class TwitchHook: JavaPlugin() {
         fun plugin(): Plugin {
             return getPlugin(TwitchHook::class.java)
         }
-    }
-
-    override fun onDisable() {
-        // Hot source, make sure to cancel
-
-        super.onDisable()
     }
 
 }

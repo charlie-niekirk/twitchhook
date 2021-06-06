@@ -1,6 +1,5 @@
 package com.cniekirk.twitchhook.command
 
-import com.cniekirk.twitchhook.data.twitch.IRCProvider
 import com.cniekirk.twitchhook.StreamEvent
 import com.cniekirk.twitchhook.TwitchHook
 import com.cniekirk.twitchhook.data.DataStreamConfig
@@ -19,10 +18,12 @@ import org.bukkit.entity.Player
 class ChaosCommand(
     private val provider: DataStreamMuxer,
     private val accessToken: String,
-    private val username: String
+    private val username: String,
+    private val chatEnabled: Boolean
 ): CommandExecutor {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
+
         if (sender is Player && args.size == 1) {
 
             if (command.name.equals("chaos", true)) {
@@ -37,8 +38,10 @@ class ChaosCommand(
                             coroutineContext.ensureActive()
                             when (message) {
                                 is StreamEvent.TwitchChatMessage -> {
-                                    Bukkit.broadcastMessage("[".trimEnd() + ChatColor.BLUE + "".trimEnd() + ChatColor.BOLD + message.username.trimEnd() +
-                                            ChatColor.RESET + "]: ${message.content}".trimEnd())
+                                    if (chatEnabled) {
+                                        Bukkit.broadcastMessage("[".trimEnd() + ChatColor.BLUE + "".trimEnd() + ChatColor.BOLD + message.username.trimEnd() +
+                                                ChatColor.RESET + "]: ${message.content}".trimEnd())
+                                    }
                                 }
                                 is StreamEvent.TwitchSubscription -> {
                                     Bukkit.broadcastMessage("" + ChatColor.RED + message.systemMessage)

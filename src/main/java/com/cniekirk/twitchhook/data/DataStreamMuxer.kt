@@ -12,7 +12,7 @@ class DataStreamMuxer(
 ) {
 
     /**
-     * Start the data streams in [providers]
+     * Start the streaming data from [providers]
      */
     fun start(dataStreamConfig: Map<String, DataStreamConfig>) {
         providers.forEach { provider ->
