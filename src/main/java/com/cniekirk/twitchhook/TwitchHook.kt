@@ -8,11 +8,15 @@ import kotlinx.coroutines.FlowPreview
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.bukkit.Bukkit
+import org.bukkit.EntityEffect
+import org.bukkit.entity.EntityType
 import org.bukkit.plugin.Plugin
 import org.bukkit.plugin.java.JavaPlugin
 
 @FlowPreview
 class TwitchHook: JavaPlugin() {
+
+    private lateinit var muxer: DataStreamMuxer
 
     override fun onEnable() {
         super.onEnable()
@@ -21,6 +25,8 @@ class TwitchHook: JavaPlugin() {
             config["username"].toString().isNotEmpty()) {
             logger.info("Access token: ${config["access_token"].toString()}")
             registerContentProviders()
+        } else {
+            logger.info("Please fill out the plugins/Twitchhook/config.yml and then re-launch the server")
         }
     }
 
@@ -34,18 +40,27 @@ class TwitchHook: JavaPlugin() {
         // Twitch data stream
         val provider = TwitchProvider(client, request, Bukkit.getLogger())
         // Allows multiple providers to be muxed together
-        val muxer = DataStreamMuxer(mapOf("twitch" to provider))
+        muxer = DataStreamMuxer(mapOf("twitch" to provider))
 
-        val commandHandler = ChaosCommand(muxer, config["access_token"].toString(), config["username"].toString(), config.getBoolean("chat_enabled"))
-        val stopCommand = StopCommand(muxer)
-        getCommand("chaos")?.setExecutor(commandHandler)
-        getCommand("calm")?.setExecutor(stopCommand)
+        if (config["sub_action"].toString().isNotEmpty()) {
+            val configuration = config["sub_action"].toString().parseConfiguration()
+            val commandHandler = ChaosCommand(muxer, config["access_token"].toString(), config["username"].toString(), config.getBoolean("chat_enabled"), configuration)
+            val stopCommand = StopCommand(muxer)
+            getCommand("chaos")?.setExecutor(commandHandler)
+            getCommand("calm")?.setExecutor(stopCommand)
+        }
     }
 
     companion object {
         fun plugin(): Plugin {
             return getPlugin(TwitchHook::class.java)
         }
+    }
+
+    override fun onDisable() {
+        muxer.stop()
+        muxer.clean()
+        super.onDisable()
     }
 
 }

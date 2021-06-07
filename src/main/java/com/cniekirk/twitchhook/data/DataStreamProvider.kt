@@ -7,4 +7,5 @@ interface DataStreamProvider {
     val eventStream: SharedFlow<StreamEvent>
     fun startDataStream(dataStreamConfig: DataStreamConfig)
     fun stopDataStream()
+    fun clean()
 }

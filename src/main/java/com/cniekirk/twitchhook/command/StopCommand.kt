@@ -7,6 +7,10 @@ import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
+/**
+ * Allows the data stream(s) to be stopped, cannot use 'stop' as it screws up
+ * the real 'stop' command
+ */
 @FlowPreview
 class StopCommand(
     private val provider: DataStreamMuxer
@@ -14,19 +18,10 @@ class StopCommand(
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
 
-        if (sender is Player) {
-
-            if (command.name.equals("calm", true)) {
-
-                if (sender.hasPermission("twitchhook.chaos")) {
-
-                    // Stop all data streams
-                    provider.stop()
-
-                }
-
-            }
-
+        if (sender is Player && sender.hasPermission("twitchhook.chaos") &&
+            command.name.equals("calm", true)) {
+            // Stop all data streams
+            provider.stop()
         }
 
         return true

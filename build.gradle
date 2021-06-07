@@ -41,9 +41,10 @@ compileTestKotlin {
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0-RC'
     implementation 'com.squareup.okhttp3:okhttp:4.9.1'
+    implementation 'io.socket:socket.io-client:2.0.1'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
     api 'org.spigotmc:spigot-api:1.16.5-R0.1-SNAPSHOT'
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
 processResources {

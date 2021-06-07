@@ -3,6 +3,7 @@ package com.cniekirk.twitchhook.data.twitch
 import com.cniekirk.twitchhook.StreamEvent
 import com.cniekirk.twitchhook.data.DataStreamConfig
 import com.cniekirk.twitchhook.data.DataStreamProvider
+import com.cniekirk.twitchhook.parseSystemMsg
 import com.cniekirk.twitchhook.parseTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,19 +14,25 @@ import okhttp3.*
 import java.util.logging.Logger
 import java.util.regex.Pattern
 
+/**
+ * [DataStreamProvider] for Twitch chat messages including subscriptions,
+ * bits and chat messages
+ */
 class TwitchProvider(private val webSocketClient: OkHttpClient,
                      private val request: Request,
                      private val logger: Logger
 ): WebSocketListener(), DataStreamProvider {
 
+    // Stream of data is represented by a [Flow]
     private val _twitchEventFlow = MutableSharedFlow<StreamEvent>()
     override val eventStream = _twitchEventFlow.asSharedFlow()
 
     // USERNOTICE tag regex
     private val usernoticePattern = Pattern.compile("""^@(?<tags>.*?) :tmi\.twitch\.tv USERNOTICE #(?<channel>.*?) ?(:(?<message>.*))?$""")
+    // PRIVMSG tag regex
     private val privmsgPattern = Pattern.compile("""^@(?<tags>.*?) (:(?<user>.*?)!.*?\.tmi\.twitch\.tv) PRIVMSG #(?<channel>.*?) :(?<msg>.*)$""")
 
-    private lateinit var webSocket: WebSocket
+    private var webSocket: WebSocket? = null
     private lateinit var targetChannelName: String
     private lateinit var accessToken: String
     private lateinit var username: String
@@ -34,6 +41,7 @@ class TwitchProvider(private val webSocketClient: OkHttpClient,
         when (dataStreamConfig) {
             is DataStreamConfig.TwitchConfig -> {
                 webSocket = webSocketClient.newWebSocket(request, this)
+                webSocketClient.connectionPool.evictAll()
                 this.targetChannelName = dataStreamConfig.targetChannelName
                 this.accessToken = dataStreamConfig.accessToken
                 this.username = dataStreamConfig.username
@@ -45,12 +53,15 @@ class TwitchProvider(private val webSocketClient: OkHttpClient,
     }
 
     override fun stopDataStream() {
-        webSocket.close(1000, null)
-        webSocketClient.dispatcher.cancelAll()
+        webSocket?.close(1000, null)
+        webSocket = null
+    }
+
+    override fun clean() {
+        webSocketClient.dispatcher.executorService.shutdown()
     }
 
     override fun onOpen(webSocket: WebSocket, response: Response) {
-        webSocketClient.dispatcher.executorService.shutdown()
         // Acquire capabilities
         webSocket.send("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership")
         // Login and configure user
@@ -61,6 +72,12 @@ class TwitchProvider(private val webSocketClient: OkHttpClient,
         webSocket.send("JOIN #${targetChannelName.lowercase()}")
     }
 
+    /**
+     * Called on each Websocket message received from Twitch
+     *
+     * @param webSocket the [WebSocket] instance the message was received on
+     * @param text the [String] representation of the received message
+     */
     override fun onMessage(webSocket: WebSocket, text: String) {
         val privMatcher = privmsgPattern.matcher(text.trim())
         val usernoticeMatcher = usernoticePattern.matcher(text.trim())
@@ -82,11 +99,11 @@ class TwitchProvider(private val webSocketClient: OkHttpClient,
                     when (tags["msg-id"]) {
                         // Individual sub messages
                         "sub", "resub", "subgift", "anonsubgift" -> {
-                            _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].toString().replace("""\s""", " "), tags["display-name"].toString()))
+                            _twitchEventFlow.emit(StreamEvent.TwitchSubscription(tags["system-msg"].parseSystemMsg(), tags["display-name"].toString()))
                         }
                         // User gifted X subs to the community
                         "submysterygift" -> {
-                            _twitchEventFlow.emit(StreamEvent.TwitchMassGiftMessage(tags["system-msg"].toString().replace("""\s""", " ")))
+                            _twitchEventFlow.emit(StreamEvent.TwitchMassGiftMessage(tags["system-msg"].parseSystemMsg()))
                         }
                     }
                 }

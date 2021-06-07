@@ -9,6 +9,6 @@ sealed class DataStreamConfig {
                             val username: String,
                             val targetChannelName: String): DataStreamConfig()
     data class StreamLabsConfig(
-        private val accessToken: String
+        val accessToken: String
     ): DataStreamConfig()
 }

@@ -6,6 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flowOf
 
+/**
+ * Combines multiple streams of data i.e. Twitch, Streamlabs, StreamElements (planned)
+ * into one data stream to be handled by upstream consumers of the [Flow]
+ */
 @FlowPreview
 class DataStreamMuxer(
     private val providers: Map<String, DataStreamProvider>
@@ -32,5 +36,7 @@ class DataStreamMuxer(
      * which need to be manually stopped
      */
     fun stop() = providers.forEach { it.value.stopDataStream() }
+
+    fun clean() = providers.forEach { it.value.clean() }
 
 }
