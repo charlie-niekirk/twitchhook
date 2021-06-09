@@ -9,21 +9,32 @@ import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import java.util.concurrent.ThreadLocalRandom
 
-fun String.parseTags(): Map<String, String> {
-    val tagMap = HashMap<String, String>()
-    this.split(";").forEach {
-        val tagPair = it.split("=")
-        if (tagPair.size > 1) {
-            tagMap[tagPair[0]] = tagPair[1]
-        } else {
-            tagMap[tagPair[0]] = ""
-        }
+/**
+ * Parses Twitch IRC tags into a [Map]
+ * @see [Tags][https://dev.twitch.tv/docs/irc/tags]
+ *
+ * @return [Map] containing tags mapped to their respective values
+ */
+fun String.parseTags(): Map<String, String> =
+    this.split(";").associate {
+        val (left, right) = it.split("=")
+        left to right
     }
-    return tagMap
-}
 
+/**
+ * Removes JSON encoded whitespace and replaces with real whitespace
+ *
+ * @return
+ */
 fun String?.parseSystemMsg(): String = this.toString().replace("""\s""", " ")
 
+/**
+ * Spawns the [EntityType] into the world and optionally names it
+ *
+ * @param type the [String] value that maps to an [EntityType]
+ * @param named whether or not this Entity should be named
+ * @param name the (optional) name to give the entity
+ */
 @FlowPreview
 fun Player.spawnEntity(type: String, named: Boolean, name: String = "") {
     Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
@@ -38,6 +49,9 @@ fun Player.spawnEntity(type: String, named: Boolean, name: String = "") {
     }
 }
 
+/**
+ *
+ */
 @FlowPreview
 fun Player.manipulateBlock(action: String) {
     Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
