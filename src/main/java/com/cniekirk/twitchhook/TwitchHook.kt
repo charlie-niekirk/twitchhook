@@ -8,8 +8,6 @@ import kotlinx.coroutines.FlowPreview
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.bukkit.Bukkit
-import org.bukkit.EntityEffect
-import org.bukkit.entity.EntityType
 import org.bukkit.plugin.Plugin
 import org.bukkit.plugin.java.JavaPlugin
 

@@ -17,15 +17,12 @@ class StopCommand(
 ): CommandExecutor {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-
         if (sender is Player && sender.hasPermission("twitchhook.chaos") &&
             command.name.equals("calm", true)) {
             // Stop all data streams
             provider.stop()
         }
-
         return true
-
     }
 
 }

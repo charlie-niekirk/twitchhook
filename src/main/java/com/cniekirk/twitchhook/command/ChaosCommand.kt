@@ -4,6 +4,7 @@ import com.cniekirk.twitchhook.StreamEvent
 import com.cniekirk.twitchhook.actions.Configuration
 import com.cniekirk.twitchhook.data.DataStreamConfig
 import com.cniekirk.twitchhook.data.DataStreamMuxer
+import com.cniekirk.twitchhook.dropGravityBlock
 import com.cniekirk.twitchhook.manipulateBlock
 import com.cniekirk.twitchhook.spawnEntity
 import kotlinx.coroutines.*
@@ -72,6 +73,9 @@ class ChaosCommand(
                                             is Configuration.PlaceBlockAction -> {
 
                                             }
+                                            is Configuration.DropBlockAction -> {
+                                                sender.dropGravityBlock(configuration.blockType)
+                                            }
                                         }
                                     }
                                     is StreamEvent.TwitchMassGiftMessage -> {
@@ -81,19 +85,12 @@ class ChaosCommand(
                             }
                         }
                     }
-
                 } else {
-
                     Bukkit.broadcastMessage("" + ChatColor.RED + "Insufficient permissions for user [${sender.player?.displayName}]")
-
                 }
-
             }
-
         }
-
         return true
-
     }
 
 }

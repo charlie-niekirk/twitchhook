@@ -6,6 +6,7 @@ import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.block.BlockFace
 import org.bukkit.entity.EntityType
+import org.bukkit.entity.FallingBlock
 import org.bukkit.entity.Player
 import java.util.concurrent.ThreadLocalRandom
 
@@ -55,22 +56,43 @@ fun Player.spawnEntity(type: String, named: Boolean, name: String = "") {
 @FlowPreview
 fun Player.manipulateBlock(action: String) {
     Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
-        val chunk = this.player?.location?.chunk!!
-        val xCoord = ThreadLocalRandom.current().nextInt(16) + chunk.x
-        val zCoord = ThreadLocalRandom.current().nextInt(16) + chunk.z
+        val playerBlock = this.player?.location?.block
+        val xCoord = ThreadLocalRandom.current().nextInt(5) + playerBlock!!.x
+        val zCoord = ThreadLocalRandom.current().nextInt(5) + playerBlock.z
         val block = this.player?.world?.getHighestBlockAt(xCoord, zCoord)
-        when {
-            action.equals("fire", true) -> {
-                if (block?.getRelative(BlockFace.UP)?.type?.equals(Material.AIR)!!) {
-                    block.getRelative(BlockFace.UP).type = Material.FIRE
+        block?.let {
+            val above = player?.world?.getBlockAt(block.x, block.y + 1, block.z)
+            above?.let {
+                when {
+                    action.equals("lava", true) -> {
+                        if (above.type == Material.AIR) {
+                            above.setType(Material.LAVA, true)
+                        }
+                    }
+                    action.equals("delete", true) -> {
+                        block.setType(Material.AIR, true)
+                    }
+                    action.equals("water", true) -> {
+                        if (above.type == Material.AIR) {
+                            above.setType(Material.WATER, true)
+                        }
+                    }
                 }
             }
-            action.equals("delete", true) -> {
-                block?.type = Material.AIR
-            }
-            action.equals("water", true) -> {
-                if (block?.getRelative(BlockFace.UP)?.type?.equals(Material.AIR)!!) {
-                    block.getRelative(BlockFace.UP).type = Material.WATER
+        }
+    }
+}
+
+@FlowPreview
+fun Player.dropGravityBlock(blockType: String) {
+    Bukkit.getServer().scheduler.scheduleSyncDelayedTask(TwitchHook.plugin()) {
+        when (blockType) {
+            "anvil" -> {
+                val playerBlock = this.player?.location?.block
+                val x = ThreadLocalRandom.current().nextInt(5) + playerBlock!!.x
+                val z = ThreadLocalRandom.current().nextInt(5) + playerBlock.z
+                player?.world?.getBlockAt(x, playerBlock.y + 45, z)?.apply {
+                    setType(Material.ANVIL, true)
                 }
             }
         }
@@ -85,6 +107,9 @@ fun String.parseConfiguration(): Configuration {
         }
         "BLOCK" -> {
             Configuration.ManipulateBlockAction(elements[1])
+        }
+        "RAIN" -> {
+            Configuration.DropBlockAction(elements[1])
         }
         else -> {
             // Default just spawns a zombie
